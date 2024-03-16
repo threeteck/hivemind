@@ -94,6 +94,7 @@ class OptimizerArguments:
     matchmaking_time: float = field(
         default=5.0, metadata={"help": "When looking for group, wait for requests for at least this many seconds"}
     )
+    assist_refresh: float = field(default=5.0, metadata={"help": "Period (in seconds) for tryin to assist averaging"})
 
 
 @dataclass
