@@ -164,6 +164,8 @@ if __name__ == "__main__":
         start=True,
         initial_peers=monitor_args.initial_peers,
         record_validators=validators,
+        use_auto_relay=True,
+        use_relay=True,
         use_ipfs=monitor_args.use_ipfs,
         host_maddrs=monitor_args.host_maddrs,
         announce_maddrs=monitor_args.announce_maddrs,
