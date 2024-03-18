@@ -234,6 +234,8 @@ def main():
         initial_peers=collaboration_args.initial_peers,
         client_mode=collaboration_args.client_mode,
         record_validators=validators,
+        use_auto_relay=True,
+        use_relay=True,
         use_ipfs=collaboration_args.use_ipfs,
         host_maddrs=collaboration_args.host_maddrs,
         announce_maddrs=collaboration_args.announce_maddrs,
