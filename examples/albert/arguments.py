@@ -113,6 +113,18 @@ class CollaborationArguments(OptimizerArguments, BaseTrainingArguments):
     )
     refresh_period: float = field(default=30, metadata={"help": "Period (in seconds) for fetching the keys from DHT"})
 
+    use_relay: bool = field(
+        default=True,
+        metadata={
+            "help": ""
+        },
+    )
+    use_auto_relay: bool = field(
+        default=False,
+        metadata={
+            "help": ""
+        },
+    )
 
 
 @dataclass
