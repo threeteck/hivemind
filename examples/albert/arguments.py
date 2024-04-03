@@ -41,6 +41,27 @@ class BaseTrainingArguments:
             "If the file does not exist yet, writes a new private key to this file."
         },
     )
+    use_google_dns: bool = field(
+        default=False,
+        metadata={
+            "help": "Use Google DNS to determine the public IP address of this machine (and add it to --announce_maddrs)"
+        },
+    )
+    refresh_period: float = field(default=30, metadata={"help": "Period (in seconds) for fetching the keys from DHT"})
+
+    use_relay: bool = field(
+        default=True,
+        metadata={
+            "help": ""
+        },
+    )
+    use_auto_relay: bool = field(
+        default=False,
+        metadata={
+            "help": ""
+        },
+    )
+
 
 
 @dataclass
@@ -104,26 +125,6 @@ class CollaborationArguments(OptimizerArguments, BaseTrainingArguments):
     )
     backup_every_steps: int = field(
         default=10, metadata={"help": "Frequency of backups to restore from in case of encountering NaN values"}
-    )
-    use_google_dns: bool = field(
-        default=True,
-        metadata={
-            "help": "Use Google DNS to determine the public IP address of this machine (and add it to --announce_maddrs)"
-        },
-    )
-    refresh_period: float = field(default=30, metadata={"help": "Period (in seconds) for fetching the keys from DHT"})
-
-    use_relay: bool = field(
-        default=True,
-        metadata={
-            "help": ""
-        },
-    )
-    use_auto_relay: bool = field(
-        default=False,
-        metadata={
-            "help": ""
-        },
     )
 
 
