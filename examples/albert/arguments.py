@@ -105,6 +105,14 @@ class CollaborationArguments(OptimizerArguments, BaseTrainingArguments):
     backup_every_steps: int = field(
         default=10, metadata={"help": "Frequency of backups to restore from in case of encountering NaN values"}
     )
+    use_google_dns: bool = field(
+        default=True,
+        metadata={
+            "help": "Use Google DNS to determine the public IP address of this machine (and add it to --announce_maddrs)"
+        },
+    )
+    refresh_period: float = field(default=30, metadata={"help": "Period (in seconds) for fetching the keys from DHT"})
+
 
 
 @dataclass

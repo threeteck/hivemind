@@ -4,10 +4,12 @@ import os
 import pickle
 import sys
 from dataclasses import asdict
+from ipaddress import ip_address
 from pathlib import Path
 
 import torch
 import transformers
+import requests
 from datasets import load_from_disk
 from torch.utils.data import DataLoader
 from torch_optimizer import Lamb
@@ -204,6 +206,16 @@ def main():
     training_args, dataset_args, collaboration_args, averager_args, tracker_args = parser.parse_args_into_dataclasses()
     logger.info(f"Found {len(collaboration_args.initial_peers)} initial peers: {collaboration_args.initial_peers}")
 
+    if collaboration_args.use_google_dns:
+        request = requests.get("https://api.ipify.org")
+        request.raise_for_status()
+
+        address = request.text
+        logger.info(f"Received public IP address of this machine: {address}")
+        version = ip_address(address).version
+        port = collaboration_args.host_maddrs[0].split('/')[-1]
+        collaboration_args.announce_maddrs += [f"/ip{version}/{address}/tcp/{port}"]
+
     setup_transformers_logging(training_args.local_rank)
     logger.info(f"Training/evaluation parameters:\n{training_args}")
 
@@ -234,8 +246,8 @@ def main():
         initial_peers=collaboration_args.initial_peers,
         client_mode=collaboration_args.client_mode,
         record_validators=validators,
-        use_auto_relay=True,
-        use_relay=True,
+        use_auto_relay=collaboration_args.use_auto_relay,
+        use_relay=collaboration_args.use_relay,
         use_ipfs=collaboration_args.use_ipfs,
         host_maddrs=collaboration_args.host_maddrs,
         announce_maddrs=collaboration_args.announce_maddrs,
@@ -243,9 +255,7 @@ def main():
     )
     log_visible_maddrs(dht.get_visible_maddrs(), only_p2p=collaboration_args.use_ipfs)
 
-    total_batch_size_per_step = training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps
-    if torch.cuda.device_count() != 0:
-        total_batch_size_per_step *= torch.cuda.device_count()
+    total_batch_size_per_step = 1 # aux peer does as little as possible
 
     adjusted_target_batch_size = collaboration_args.target_batch_size - collaboration_args.batch_size_lead
 
@@ -304,8 +314,41 @@ def main():
         args=[lock, optimizer, collaboration_args, finished], daemon=True
     )
     averaging_thread.start()
+
+    run_id = collaboration_args.run_id
+    current_step = 0
+
     while True:
-        pass
+        metrics_dict = dht.get(run_id + "_metrics", latest=True)
+        if metrics_dict is not None:
+            metrics_dict = metrics_dict.value
+            metrics = [utils.LocalMetrics.parse_obj(metrics_dict[peer].value) for peer in metrics_dict]
+            latest_step = max(item.step for item in metrics)
+
+            if latest_step != current_step:
+                logger.debug(f"Got metrics from {len(metrics)} peers")
+
+                for i, metrics_for_peer in enumerate(metrics):
+                    logger.debug(f"{i} peer {metrics_for_peer}")
+
+                current_step = latest_step
+                alive_peers = 0
+                sum_loss = 0
+                num_samples = 0
+                sum_perf = 0
+                sum_mini_steps = 0
+
+                for item in metrics:
+                    sum_loss += item.loss
+                    alive_peers += 1
+                    sum_perf += item.samples_per_second
+                    num_samples += item.samples_accumulated
+                    sum_mini_steps += item.mini_steps
+                current_loss = sum_loss / sum_mini_steps
+                logger.info(f"Step #{current_step}\tloss = {current_loss:.5f}")
+
+        logger.debug("Peer is still alive...")
+        time.sleep(collaboration_args.refresh_period)
 
 
 
