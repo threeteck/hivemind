@@ -105,6 +105,18 @@ class CollaborationArguments(OptimizerArguments, BaseTrainingArguments):
     backup_every_steps: int = field(
         default=10, metadata={"help": "Frequency of backups to restore from in case of encountering NaN values"}
     )
+    use_relay: bool = field(
+        default=True,
+        metadata={
+            "help": ""
+        },
+    )
+    use_auto_relay: bool = field(
+        default=False,
+        metadata={
+            "help": ""
+        },
+    )
 
 
 @dataclass
