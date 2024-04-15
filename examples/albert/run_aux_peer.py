@@ -255,7 +255,7 @@ def main():
     )
     log_visible_maddrs(dht.get_visible_maddrs(), only_p2p=collaboration_args.use_ipfs)
 
-    total_batch_size_per_step = 1 # aux peer does as little as possible
+    total_batch_size_per_step = None # aux peer does as little as possible
 
     adjusted_target_batch_size = collaboration_args.target_batch_size - collaboration_args.batch_size_lead
 
@@ -306,6 +306,7 @@ def main():
         averager_opts={"bandwidth": collaboration_args.bandwidth, **asdict(averager_args)},
         tracker_opts=asdict(tracker_args),
         verbose=True,
+        auxiliary=True
     )
     finished, lock = threading.Event(), threading.Lock()
     assert not collaboration_args.client_mode, "client-mode peers cannot assist in averaging"
