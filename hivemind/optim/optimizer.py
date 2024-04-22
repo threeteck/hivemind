@@ -330,6 +330,7 @@ class Optimizer(torch.optim.Optimizer):
             client_mode=self.client_mode,
             status_loglevel=self.status_loglevel,
             start=True,
+            auxiliary=self.auxiliary
             **kwargs,
         )
 
