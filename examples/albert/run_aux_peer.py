@@ -62,125 +62,34 @@ def get_model(training_args, config, tokenizer):
 
     return model
 
+def get_opt_and_scheduler(training_args, model):
+    no_decay = ["bias", "LayerNorm.weight"]
+    params = [
+        {
+            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+            "weight_decay": training_args.weight_decay,
+        },
+        {
+            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+            "weight_decay": 0.0,
+        },
+    ]
 
-class CollaborativeCallback(transformers.TrainerCallback):
-    """
-    This callback monitors and reports collaborative training progress.
-    In case of a catastrophic failure, it can also revert training to a backup.
-    """
+    opt = Lamb(
+        params,
+        lr=training_args.learning_rate,
+        betas=(training_args.adam_beta1, training_args.adam_beta2),
+        eps=training_args.adam_epsilon,
+        weight_decay=training_args.weight_decay,
+        clamp_value=training_args.clamp_value,
+        debias=True,
+    )
 
-    def __init__(
-        self,
-        dht: DHT,
-        optimizer: Optimizer,
-        model: torch.nn.Module,
-        local_public_key: bytes,
-        statistics_expiration: float,
-        backup_every_steps: int,
-    ):
-        super().__init__()
-        self.model = model
-        self.dht, self.optimizer = dht, optimizer
-        self.local_public_key = local_public_key
-        self.statistics_expiration = statistics_expiration
-        self.last_reported_collaboration_step = -1
-        self.samples = 0
-        self.steps = 0
-        self.loss = 0
-        self.total_samples_processed = 0
-        self.backup_every_steps = backup_every_steps
-        self.latest_backup = self.backup_state()
+    scheduler = get_linear_schedule_with_warmup(
+        opt, num_warmup_steps=training_args.warmup_steps, num_training_steps=training_args.total_steps
+    )
 
-    def on_train_begin(
-        self, args: TrainingArguments, state: transformers.TrainerState, control: transformers.TrainerControl, **kwargs
-    ):
-        logger.info("Loading state from peers")
-        self.optimizer.load_state_from_peers()
-
-    def on_step_end(
-        self, args: TrainingArguments, state: transformers.TrainerState, control: transformers.TrainerControl, **kwargs
-    ):
-        control.should_log = True
-        if not self.params_are_finite():
-            self.restore_from_backup(self.latest_backup)
-            return control
-
-        local_progress = self.optimizer.local_progress
-
-        if state.log_history:
-            self.loss += state.log_history[-1]["loss"]
-            self.steps += 1
-
-            if self.optimizer.local_epoch != self.last_reported_collaboration_step:
-                self.last_reported_collaboration_step = self.optimizer.local_epoch
-                self.total_samples_processed += self.samples
-                samples_per_second = local_progress.samples_per_second
-                statistics = utils.LocalMetrics(
-                    step=self.optimizer.local_epoch,
-                    samples_per_second=samples_per_second,
-                    samples_accumulated=self.samples,
-                    loss=self.loss,
-                    mini_steps=self.steps,
-                )
-                logger.info(f"Step #{self.optimizer.local_epoch}")
-                logger.info(f"Your current contribution: {self.total_samples_processed} samples")
-                logger.info(f"Performance: {samples_per_second:.3f} samples/sec")
-                if self.steps:
-                    logger.info(f"Local loss: {self.loss / self.steps:.5f}")
-                if self.optimizer.local_epoch % self.backup_every_steps == 0:
-                    self.latest_backup = self.backup_state()
-
-                self.loss = 0
-                self.steps = 0
-                if self.optimizer.is_synchronized_with_peers():
-                    self.dht.store(
-                        key=self.optimizer.run_id + "_metrics",
-                        subkey=self.local_public_key,
-                        value=statistics.dict(),
-                        expiration_time=get_dht_time() + self.statistics_expiration,
-                        return_future=True,
-                    )
-
-        self.samples = local_progress.samples_accumulated
-
-        return control
-
-    @torch.no_grad()
-    def params_are_finite(self):
-        for param in self.model.parameters():
-            if not torch.all(torch.isfinite(param)):
-                return False
-        return True
-
-    @torch.no_grad()
-    def backup_state(self) -> bytes:
-        return pickle.dumps({"model": self.model.state_dict(), "optimizer": self.optimizer.state_dict()})
-
-    @torch.no_grad()
-    def restore_from_backup(self, backup: bytes):
-        state = pickle.loads(backup)
-        self.model.load_state_dict(state["model"])
-        self.optimizer.load_state_dict(state["optimizer"])
-
-
-class NoOpScheduler(LRSchedulerBase):
-    """Dummy scheduler for transformers.Trainer. The real scheduler is defined in Optimizer.scheduler"""
-
-    def get_lr(self):
-        return [group["lr"] for group in self.optimizer.param_groups]
-
-    def print_lr(self, *args, **kwargs):
-        if self.optimizer.scheduler:
-            return self.optimizer.scheduler.print_lr(*args, **kwargs)
-
-    def step(self):
-        self._last_lr = self.get_lr()
-
-    def state_dict(self):
-        return {}
-
-    def load_state_dict(self, *args, **kwargs):
-        logger.debug("Called NoOpScheduler.load_state_dict")
+    return opt, scheduler
 
 def assist_averaging_in_background(
         lock: threading.Lock, optimizer: Optimizer, opt_args: CollaborationArguments, finished: threading.Event
@@ -233,11 +142,13 @@ def main():
         sys.exit(1)
 
     model = get_model(training_args, config, tokenizer)
-    # model.to(training_args.device)
+    model.to(training_args.device)
 
-    tokenized_datasets = load_from_disk(Path(dataset_args.dataset_path))
+    opt, scheduler = get_opt_and_scheduler(training_args, model)
+
+    #tokenized_datasets = load_from_disk(Path(dataset_args.dataset_path))
     # This data collator will take care of randomly masking the tokens.
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer)
+    #data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer)
 
     validators, local_public_key = utils.make_validators(collaboration_args.run_id)
 
@@ -256,36 +167,7 @@ def main():
     log_visible_maddrs(dht.get_visible_maddrs(), only_p2p=collaboration_args.use_ipfs)
 
     total_batch_size_per_step = None # aux peer does as little as possible
-
     adjusted_target_batch_size = collaboration_args.target_batch_size - collaboration_args.batch_size_lead
-
-    # We need to make such a lambda function instead of just an optimizer instance
-    # to make hivemind.Optimizer(..., offload_optimizer=True) work
-    opt = lambda params: Lamb(
-        params,
-        lr=training_args.learning_rate,
-        betas=(training_args.adam_beta1, training_args.adam_beta2),
-        eps=training_args.adam_epsilon,
-        weight_decay=training_args.weight_decay,
-        clamp_value=training_args.clamp_value,
-        debias=True,
-    )
-
-    no_decay = ["bias", "LayerNorm.weight"]
-    params = [
-        {
-            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-            "weight_decay": training_args.weight_decay,
-        },
-        {
-            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
-            "weight_decay": 0.0,
-        },
-    ]
-
-    scheduler = lambda opt: get_linear_schedule_with_warmup(
-        opt, num_warmup_steps=training_args.warmup_steps, num_training_steps=training_args.total_steps
-    )
 
     optimizer = Optimizer(
         dht=dht,
@@ -293,11 +175,9 @@ def main():
         target_batch_size=adjusted_target_batch_size,
         batch_size_per_step=total_batch_size_per_step,
         optimizer=opt,
-        params=params,
         scheduler=scheduler,
         matchmaking_time=collaboration_args.matchmaking_time,
         averaging_timeout=collaboration_args.averaging_timeout,
-        offload_optimizer=True,
         delay_optimizer_step=True,
         delay_grad_averaging=True,
         client_mode=collaboration_args.client_mode,
