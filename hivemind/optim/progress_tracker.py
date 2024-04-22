@@ -82,6 +82,7 @@ class ProgressTracker(threading.Thread):
         target_batch_size: int,
         *,
         client_mode: Optional[bool] = None,
+        auxiliary: Optional[bool] = None,
         min_refresh_period: float = 0.5,
         max_refresh_period: float = 10,
         default_refresh_period: float = 3,
@@ -104,6 +105,7 @@ class ProgressTracker(threading.Thread):
         self.status_loglevel = status_loglevel
         self.performance_ema = PerformanceEMA(alpha=performance_ema_alpha)
         self.metadata_expiration = metadata_expiration
+        self.auxiliary = auxiliary
 
         signature_validator = RSASignatureValidator(private_key)
         self._local_public_key = signature_validator.local_public_key
@@ -302,7 +304,7 @@ class ProgressTracker(threading.Thread):
 
         global_epoch = self.local_progress.epoch
         for peer in valid_peer_entries:
-            if not peer.client_mode:
+            if not peer.client_mode or self.auxiliary:
                 global_epoch = max(global_epoch, peer.epoch)
 
         total_samples_accumulated = estimated_current_samples = 0

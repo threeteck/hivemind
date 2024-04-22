@@ -63,6 +63,16 @@ def get_model(training_args, config, tokenizer):
     return model
 
 def get_opt_and_scheduler(training_args, model):
+    opt = lambda params: Lamb(
+        params,
+        lr=training_args.learning_rate,
+        betas=(training_args.adam_beta1, training_args.adam_beta2),
+        eps=training_args.adam_epsilon,
+        weight_decay=training_args.weight_decay,
+        clamp_value=training_args.clamp_value,
+        debias=True,
+    )
+
     no_decay = ["bias", "LayerNorm.weight"]
     params = [
         {
@@ -75,21 +85,11 @@ def get_opt_and_scheduler(training_args, model):
         },
     ]
 
-    opt = Lamb(
-        params,
-        lr=training_args.learning_rate,
-        betas=(training_args.adam_beta1, training_args.adam_beta2),
-        eps=training_args.adam_epsilon,
-        weight_decay=training_args.weight_decay,
-        clamp_value=training_args.clamp_value,
-        debias=True,
-    )
-
-    scheduler = get_linear_schedule_with_warmup(
+    scheduler = lambda opt: get_linear_schedule_with_warmup(
         opt, num_warmup_steps=training_args.warmup_steps, num_training_steps=training_args.total_steps
     )
 
-    return opt, scheduler
+    return opt, scheduler, params
 
 def assist_averaging_in_background(
         lock: threading.Lock, optimizer: Optimizer, opt_args: CollaborationArguments, finished: threading.Event
@@ -144,7 +144,7 @@ def main():
     model = get_model(training_args, config, tokenizer)
     model.to(training_args.device)
 
-    opt, scheduler = get_opt_and_scheduler(training_args, model)
+    opt, scheduler, params = get_opt_and_scheduler(training_args, model)
 
     #tokenized_datasets = load_from_disk(Path(dataset_args.dataset_path))
     # This data collator will take care of randomly masking the tokens.
@@ -175,9 +175,11 @@ def main():
         target_batch_size=adjusted_target_batch_size,
         batch_size_per_step=total_batch_size_per_step,
         optimizer=opt,
+        params=params,
         scheduler=scheduler,
         matchmaking_time=collaboration_args.matchmaking_time,
         averaging_timeout=collaboration_args.averaging_timeout,
+        offload_optimizer=True,
         delay_optimizer_step=True,
         delay_grad_averaging=True,
         client_mode=collaboration_args.client_mode,

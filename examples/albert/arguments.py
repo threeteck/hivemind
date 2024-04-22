@@ -94,7 +94,7 @@ class ProgressTrackerArguments:
 @dataclass
 class OptimizerArguments:
     target_batch_size: int = field(
-        default=4096,
+        default=2096,
         metadata={"help": "Perform optimizer step after all peers collectively accumulate this many samples"},
     )
     client_mode: bool = field(
@@ -110,10 +110,10 @@ class OptimizerArguments:
         metadata={"help": "Available network bandwidth, in mbps (used for load balancing in all-reduce)"},
     )
     averaging_timeout: float = field(
-        default=60.0, metadata={"help": "Give up on averaging step after this many seconds"}
+        default=90.0, metadata={"help": "Give up on averaging step after this many seconds"}
     )
     matchmaking_time: float = field(
-        default=5.0, metadata={"help": "When looking for group, wait for requests for at least this many seconds"}
+        default=30.0, metadata={"help": "When looking for group, wait for requests for at least this many seconds"}
     )
     assist_refresh: float = field(default=5.0, metadata={"help": "Period (in seconds) for tryin to assist averaging"})
 

@@ -431,6 +431,10 @@ class Optimizer(torch.optim.Optimizer):
                 )
 
         if self.tracker.ready_to_update_epoch:
+            print('self.tracker.ready_to_update_epoch = True')
+            print('self.global_epoch > self.local_progress.epoch:', self.tracker.global_epoch > self.tracker.local_progress.epoch, '\t', self.tracker.global_epoch, self.tracker.local_progress.epoch)
+            print('self.global_progress.samples_accumulated >= self.target_batch_size:', self.tracker.global_progress.samples_accumulated >= self.tracker.target_batch_size, '\t', self.tracker.global_progress.samples_accumulated, self.tracker.target_batch_size)
+            print('get_dht_time() >= self.global_progress.eta_next_epoch', get_dht_time() >= self.tracker.global_progress.eta_next_epoch, '\t', get_dht_time(), self.tracker.global_progress.eta_next_epoch)
             self._update_global_epoch(grad_scaler)
 
         return loss
