@@ -53,6 +53,7 @@ class StepControl(MPFuture):
         self.scheduled_time = scheduled_time
         self.weight = weight
         self.began_allreduce = False
+        self.last_stage_time = get_dht_time()
 
     def attach(self, trigger: MPFuture, cancel: MPFuture):
         assert self._trigger is None and self._cancel is None, "Futures are already attached"
@@ -107,6 +108,9 @@ class StepControl(MPFuture):
         if stage == AveragingStage.RUNNING_ALLREDUCE:
             self.began_allreduce = True
         self._shared_buffer[StepControl._STAGE] = stage.value
+        duration = get_dht_time() - self.last_stage_time
+        self.last_stage_time = get_dht_time()
+        logger.debug(f"AVERAGING: Stage changed to {stage} at {get_dht_time():.3f} (duration: {duration:.3f}s)")
 
     @property
     def began_allreduce(self) -> bool:
