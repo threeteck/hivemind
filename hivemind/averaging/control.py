@@ -108,13 +108,7 @@ class StepControl(MPFuture):
         if stage == AveragingStage.RUNNING_ALLREDUCE:
             self.began_allreduce = True
         self._shared_buffer[StepControl._STAGE] = stage.value
-        if self.last_stage_time is not None:
-            duration = get_dht_time() - self.last_stage_time
-            self.last_stage_time = get_dht_time()
-            logger.debug(f"AVERAGING: Stage changed to {stage} at {self.last_stage_time:.3f} (duration: {duration:.3f}s)")
-        else:
-            self.last_stage_time = get_dht_time()
-            logger.debug(f"AVERAGING: Stage changed to {stage} at {self.last_stage_time:.3f}")
+        logger.debug(f"AVERAGING: Stage changed to {stage.name} at {get_dht_time():.3f}")
 
     @property
     def began_allreduce(self) -> bool:
