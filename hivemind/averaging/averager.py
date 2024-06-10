@@ -40,6 +40,7 @@ from hivemind.utils.asyncio import (
 from hivemind.utils.serializer import MSGPackSerializer, SerializerBase
 from hivemind.utils.streaming import combine_from_streaming, split_for_streaming
 from hivemind.utils.timed_storage import DHTExpiration, ValueWithExpiration, get_dht_time
+import logging
 
 # flavour types
 GatheredData = Any
@@ -420,13 +421,22 @@ class DecentralizedAverager(mp.Process, ServicerBase):
     async def _step(self, *, step: StepControl, future_for_init: MPFuture):
         try:
             trigger, cancel = MPFuture(), MPFuture()
+            last_time = get_dht_time()
             step.attach(trigger, cancel)
             future_for_init.set_result((trigger, cancel))
+
+            def log_stage_change(stage: AveragingStage):
+                nonlocal last_time
+                new_time = get_dht_time()
+                duration = new_time - last_time
+                logger.log(logging.INFO, f"AVERAGING: Stage changed to {stage.name} at {new_time:.3f} (dt={duration:.3f})")
+                last_time = new_time
 
             async def find_peers_or_notify_cancel():
                 group_info = await self._matchmaking.look_for_group(step)
                 if not step.triggered:
                     step.stage = AveragingStage.AWAITING_TRIGGER
+                    log_stage_change(AveragingStage.AWAITING_TRIGGER)
                     await step.wait_for_trigger()
                 return group_info
 
@@ -434,6 +444,7 @@ class DecentralizedAverager(mp.Process, ServicerBase):
                 try:
                     self._pending_groups_registered.clear()
                     step.stage = AveragingStage.LOOKING_FOR_GROUP
+                    log_stage_change(AveragingStage.LOOKING_FOR_GROUP)
                     matchmaking_task = asyncio.create_task(find_peers_or_notify_cancel())
                     check_cancel_task = asyncio.create_task(step.wait_for_cancel())
 
@@ -451,6 +462,7 @@ class DecentralizedAverager(mp.Process, ServicerBase):
 
                     with self._register_allreduce_group(group_info):
                         step.stage = AveragingStage.RUNNING_ALLREDUCE
+                        log_stage_change(AveragingStage.RUNNING_ALLREDUCE)
 
                         step.set_result(
                             await asyncio.wait_for(
@@ -489,6 +501,7 @@ class DecentralizedAverager(mp.Process, ServicerBase):
             raise
         finally:
             step.stage = AveragingStage.FINISHED
+            log_stage_change(AveragingStage.FINISHED)
             if not step.done():
                 step.set_exception(
                     RuntimeError(

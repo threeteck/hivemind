@@ -2,7 +2,6 @@ import os
 import struct
 from enum import Enum
 from typing import Optional
-import logging
 
 import numpy as np
 import torch
@@ -109,7 +108,6 @@ class StepControl(MPFuture):
         if stage == AveragingStage.RUNNING_ALLREDUCE:
             self.began_allreduce = True
         self._shared_buffer[StepControl._STAGE] = stage.value
-        logger.log(logging.INFO, f"AVERAGING: Stage changed to {stage.name} at {get_dht_time():.3f}")
 
     @property
     def began_allreduce(self) -> bool:
