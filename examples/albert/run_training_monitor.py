@@ -31,13 +31,6 @@ class TrainingMonitorArguments(BaseTrainingArguments):
     Specify initial_peers argument for that purpose
     """
 
-    use_google_dns: bool = field(
-        default=False,
-        metadata={
-            "help": "Use Google DNS to determine the public IP address of this machine (and add it to --announce_maddrs)"
-        },
-    )
-    refresh_period: float = field(default=30, metadata={"help": "Period (in seconds) for fetching the keys from DHT"})
     wandb_project: Optional[str] = field(
         default=None, metadata={"help": "Name of Weights & Biases project to report the training progress to"}
     )
@@ -164,6 +157,8 @@ if __name__ == "__main__":
         start=True,
         initial_peers=monitor_args.initial_peers,
         record_validators=validators,
+        use_auto_relay=monitor_args.use_auto_relay,
+        use_relay=monitor_args.use_relay,
         use_ipfs=monitor_args.use_ipfs,
         host_maddrs=monitor_args.host_maddrs,
         announce_maddrs=monitor_args.announce_maddrs,

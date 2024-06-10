@@ -45,6 +45,7 @@ class StepControl(MPFuture):
         self._data_for_gather, self._deadline, self._allow_retries = data_for_gather, deadline, allow_retries
         self._trigger: Optional[MPFuture] = None
         self._cancel: Optional[MPFuture] = None
+        self.last_stage_time = None
 
         # Buffer contents:
         # scheduled_time (double) | weight (double) | stage (AveragingStage, 1 byte) | began_allreduce: (bool, 1 byte)
