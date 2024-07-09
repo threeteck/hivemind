@@ -1,3 +1,34 @@
+# Пример запуска
+
+*Note: измените ip адрес/порты/initial_peers на свои*
+
+```shell
+rm -rf outputs/
+```
+
+### ПК 1
+
+**Aux peer/Monitor**
+```shell
+python run_aux_peer.py --host_maddrs /ip4/0.0.0.0/tcp/35685 --announce_maddrs /ip4/192.168.0.45/tcp/35685 --identity ./identity_monitor --wandb_project albert_ex
+```
+
+Скопируете initial_peers от aux peer'а и далее используете его.
+
+**Trainer 1**
+```shell
+python run_trainer.py --initial_peers /ip4/192.168.0.45/tcp/35685/p2p/QmciGc5XM6TALU6FUE1oaLGb4MZcyDyjj5j4gSneXwbKoQ --per_device_train_batch_size 4 --host_maddrs /ip4/0.0.0.0/tcp/35686 --announce_maddrs /ip4/192.168.0.45/tcp/35686 --identity ./identity_trainer
+```
+
+### ПК 2
+**Trainer 2**
+```shell
+python run_trainer.py --initial_peers /ip4/192.168.0.45/tcp/35685/p2p/QmciGc5XM6TALU6FUE1oaLGb4MZcyDyjj5j4gSneXwbKoQ --per_device_train_batch_size 4 --host_maddrs /ip4/0.0.0.0/tcp/35687 --identity ./identity_trainer2
+```
+
+Опционально, ко второму trainer'у можно добавить опцию --client_mode
+
+---
 # Training ALBERT with decentralized averaging
 
 This tutorial will walk you through the steps to set up collaborative training with the ALBERT-large-v2 model and the

@@ -7,6 +7,7 @@ from dataclasses import asdict
 from ipaddress import ip_address
 from pathlib import Path
 
+import wandb
 import torch
 import transformers
 import requests
@@ -33,6 +34,7 @@ from arguments import (
     CollaborationArguments,
     DatasetArguments,
     ProgressTrackerArguments,
+    MonitorArguments
 )
 
 use_hivemind_log_handler("in_root_logger")
@@ -105,6 +107,7 @@ def assist_averaging_in_background(
 def main():
     parser = HfArgumentParser(
         (
+            MonitorArguments,
             AlbertTrainingArguments,
             DatasetArguments,
             CollaborationArguments,
@@ -112,7 +115,7 @@ def main():
             ProgressTrackerArguments,
         )
     )
-    training_args, dataset_args, collaboration_args, averager_args, tracker_args = parser.parse_args_into_dataclasses()
+    monitor_args, training_args, dataset_args, collaboration_args, averager_args, tracker_args = parser.parse_args_into_dataclasses()
     logger.info(f"Found {len(collaboration_args.initial_peers)} initial peers: {collaboration_args.initial_peers}")
 
     if collaboration_args.use_google_dns:
@@ -190,6 +193,10 @@ def main():
         verbose=True,
         auxiliary=True
     )
+
+    if monitor_args.wandb_project is not None:
+        wandb.init(project=monitor_args.wandb_project)
+
     finished, lock = threading.Event(), threading.Lock()
     assert not collaboration_args.client_mode, "client-mode peers cannot assist in averaging"
     averaging_thread = threading.Thread(
@@ -229,6 +236,17 @@ def main():
                     sum_mini_steps += item.mini_steps
                 current_loss = sum_loss / sum_mini_steps
                 logger.info(f"Step #{current_step}\tloss = {current_loss:.5f}")
+
+                if monitor_args.wandb_project is not None:
+                    wandb.log(
+                        {
+                            "loss": current_loss,
+                            "alive peers": alive_peers,
+                            "samples": num_samples,
+                            "performance": sum_perf,
+                            "step": latest_step,
+                        }
+                    )
 
         logger.debug("Peer is still alive...")
         time.sleep(collaboration_args.refresh_period)

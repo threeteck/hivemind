@@ -4,6 +4,7 @@ from typing import List, Optional
 from transformers import TrainingArguments
 
 
+
 @dataclass
 class BaseTrainingArguments:
     run_id: str = field(
@@ -60,6 +61,37 @@ class BaseTrainingArguments:
         metadata={
             "help": ""
         },
+    )
+
+
+
+@dataclass
+class MonitorArguments:
+    """
+    Note: You might want to have several initial peers so that if one dies,
+    new workers still can join the collaboration via alive initial peers' addresses.
+    Specify initial_peers argument for that purpose
+    """
+
+    wandb_project: Optional[str] = field(
+        default=None, metadata={"help": "Name of Weights & Biases project to report the training progress to"}
+    )
+    store_checkpoints: bool = field(default=True, metadata={"help": "If False, disables periodic checkpoint saving"})
+    save_checkpoint_step_interval: int = field(
+        default=5, metadata={"help": "Frequency (in steps) of fetching and saving state from peers"}
+    )
+    model_config_path: str = field(
+        default="albert-large-v2",
+        metadata={"help": "Path to the model config"},
+    )
+    repo_path: Optional[str] = field(
+        default=None, metadata={"help": "Path to local repository to store the model and optimizer states"}
+    )
+    repo_url: Optional[str] = field(
+        default=None, metadata={"help": "URL of Hugging Face Hub repository to upload the model and optimizer states"}
+    )
+    upload_interval: Optional[float] = field(
+        default=None, metadata={"help": "Frequency (in seconds) of uploading the model to Hub"}
     )
 
 
